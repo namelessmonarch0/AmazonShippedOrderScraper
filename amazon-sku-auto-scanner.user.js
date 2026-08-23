@@ -128,9 +128,9 @@
     statusTxt.textContent = "Status: ✅ Scan Complete";
     statusTxt.style.color = '#28a745';
   } else if (isActive) {
-    statusTxt.textContent = `Status: ⏳ Loading page for SKU ${currentIndex + 1}...`;
+    statusTxt.textContent = `Status: ⏳ Loading page for SKU ${currentIndex + 1}/${skusToTest.length}: ${skusToTest[currentIndex]}...`;
   } else {
-    statusTxt.textContent = `Status: ⏸ Paused at SKU ${currentIndex + 1}`;
+    statusTxt.textContent = `Status: ⏸ Paused at SKU ${currentIndex + 1}/${skusToTest.length}: ${skusToTest[currentIndex]}`;
   }
 
   // ==========================================
@@ -153,7 +153,7 @@
 
   btnStop.addEventListener('click', () => {
     localStorage.setItem(KEY_ACTIVE, 'false');
-    statusTxt.textContent = `Status: ⏸ Paused at SKU ${currentIndex + 1}`;
+    statusTxt.textContent = `Status: ⏸ Paused at SKU ${currentIndex + 1}/${skusToTest.length}: ${skusToTest[currentIndex]}`;
   });
 
   btnExport.addEventListener('click', () => {
@@ -317,7 +317,7 @@
     const sku = skusToTest[currentIndex];
     console.log(`\n--- [${currentIndex + 1}/${skusToTest.length}] Searching for: ${sku} ---`);
 
-    statusTxt.textContent = `Status: ⏳ Waiting for Amazon to load...`;
+    statusTxt.textContent = `Status: ⏳ Waiting for Amazon to load... (SKU ${currentIndex + 1}/${skusToTest.length}: ${sku})`;
     let searchInput = null;
     for(let i=0; i < 40; i++) {
         searchInput = document.getElementById('myo-search-input');
@@ -332,7 +332,7 @@
       return;
     }
 
-    statusTxt.textContent = `Status: ⏳ Scanning SKU ${currentIndex + 1} of ${skusToTest.length}`;
+    statusTxt.textContent = `Status: ⏳ Scanning SKU ${currentIndex + 1} of ${skusToTest.length}: ${sku}`;
 
     const isDropdownVerified = await ensureDropdownIsSKU();
     if (!isDropdownVerified) {
