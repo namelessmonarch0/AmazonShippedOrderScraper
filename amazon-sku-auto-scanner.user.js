@@ -1,15 +1,21 @@
 // ==UserScript==
 // @name         Amazon SKU Auto-Scanner (Invincible Mode + CSV Export)
 // @namespace    http://tampermonkey.net/
-// @version      6.0
+// @version      6.1
 // @description  Automates SKU scraping with hard-reloading and automatic CSV export
 // @author       You
 // @match        *://sellercentral.amazon.com/*
+// @noframes
 // @grant        none
 // ==/UserScript==
 
 (function() {
   'use strict';
+
+  // Guard against a second injection (e.g. into an iframe despite @noframes)
+  // racing this one on the same localStorage keys.
+  if (window.__amazonScannerLoaded) return;
+  window.__amazonScannerLoaded = true;
 
   // ==========================================
   // 1. CONFIGURATION (YOUR FULL LIST)
@@ -65,13 +71,18 @@
     "BIBLE-USA5-M-OL", "BIBLE-USA3-M-BL", "BIBLE-ES01-M-OL", "BIBLE-UCUS-M-BL", "BIBLE-USA3-L-PN"
   ];
 
-  const waitTime = 3500;
+  // Max time (ms) to wait for the results table to actually change after a
+  // search or "Next page" click, before giving up and retrying the SKU.
+  const waitTime = 20000;
   const nextButtonSelector = '.a-last a';
+  const MAX_RETRIES = 3;
+  const MAX_PAGES_PER_SKU = 50;
 
   const KEY_INDEX = 'amazon_scan_index';
   const KEY_RESULTS = 'amazon_scan_results';
   const KEY_ACTIVE = 'amazon_scan_active';
   const KEY_URL = 'amazon_clean_url';
+  const KEY_RETRY = 'amazon_scan_retry';
 
   if (!localStorage.getItem(KEY_URL)) {
     localStorage.setItem(KEY_URL, window.location.origin + window.location.pathname);
@@ -141,6 +152,7 @@
       localStorage.setItem(KEY_INDEX, 0);
       localStorage.setItem(KEY_RESULTS, JSON.stringify({}));
       localStorage.setItem(KEY_ACTIVE, 'true');
+      localStorage.setItem(KEY_RETRY, 0);
       localStorage.setItem(KEY_URL, window.location.origin + window.location.pathname);
       window.location.assign(localStorage.getItem(KEY_URL));
     }
@@ -170,11 +182,39 @@
   // ==========================================
   const exactSleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+  // Cheap fingerprint of the current results table, used to detect whether
+  // a search/pagination click has actually taken effect yet instead of
+  // blindly trusting a fixed sleep (which either scrapes stale data too
+  // early, or wastes time waiting when Amazon was already fast).
+  function resultsSignature() {
+    const table = document.querySelector('#orders-table');
+    if (!table) return ''; // absent table is itself a valid, detectable state
+    const rowCount = table.querySelectorAll('tr').length;
+    return rowCount + '|' + table.textContent.slice(0, 300);
+  }
+
+  async function waitForResultsChange(prevSignature, timeoutMs) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      if (resultsSignature() !== prevSignature) return true;
+      await exactSleep(250);
+    }
+    return false;
+  }
+
   // NEW: CSV Generation Function
+  function csvEscape(val) {
+    return `"${String(val).replace(/"/g, '""')}"`;
+  }
+
   function generateCSV(resultsObj) {
     let csvString = "SKU,Quantity\n"; // Headers
-    for (const [sku, qty] of Object.entries(resultsObj)) {
-      csvString += `"${sku}","${qty}"\n`; // Add each item safely
+    // Always emit every configured SKU, in list order, so an interrupted
+    // scan produces a CSV that's obviously incomplete rather than one that
+    // silently looks finished.
+    for (const sku of skusToTest) {
+      const qty = Object.prototype.hasOwnProperty.call(resultsObj, sku) ? resultsObj[sku] : 'NOT_SCANNED';
+      csvString += `${csvEscape(sku)},${csvEscape(qty)}\n`;
     }
 
     // Create a Blob and trigger a download
@@ -190,6 +230,7 @@
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   function forceClick(element) {
@@ -271,16 +312,24 @@
 
       if (currentSkuMatched && currentStatus === 'shipped') {
         const bTags = row.querySelectorAll('b');
+        let quantityFound = false;
         bTags.forEach(b => {
           const parentText = b.parentElement.textContent.trim();
           if ((parentText.startsWith('Quantity') || parentText.startsWith('Quantity Shipped')) && !parentText.includes('Total')) {
             const val = parseInt(b.textContent.trim(), 10);
             if (!isNaN(val)) {
               pageQuantity += val;
+              quantityFound = true;
               currentSkuMatched = false;
             }
           }
         });
+        // Diagnostic only: a shipped row matched the SKU but no quantity
+        // could be parsed from it. Doesn't change the count, but surfaces a
+        // markup mismatch that would otherwise silently undercount.
+        if (!quantityFound) {
+          console.warn(`SKU "${targetSku}" matched a shipped row but no quantity value was found in it — this row was not counted.`, row);
+        }
       }
     });
     return pageQuantity;
@@ -291,8 +340,26 @@
     finalResults[sku] = result;
     localStorage.setItem(KEY_RESULTS, JSON.stringify(finalResults));
     localStorage.setItem(KEY_INDEX, currentIndex + 1);
+    localStorage.setItem(KEY_RETRY, 0);
 
     window.location.assign(localStorage.getItem(KEY_URL));
+  }
+
+  // Central failure handler for a SKU: retries the same SKU (via a clean
+  // reload) up to MAX_RETRIES times before giving up and recording an error,
+  // so a transient hiccup doesn't require manual intervention but a
+  // persistent one doesn't loop forever either.
+  function failCurrentSKU(sku, reason) {
+    const attempt = (parseInt(localStorage.getItem(KEY_RETRY), 10) || 0) + 1;
+    if (attempt < MAX_RETRIES) {
+      localStorage.setItem(KEY_RETRY, attempt);
+      console.warn(`Retry ${attempt}/${MAX_RETRIES - 1} for "${sku}": ${reason}`);
+      statusTxt.textContent = `Status: ⚠ Retry ${attempt}/${MAX_RETRIES - 1} — ${sku} (${reason})`;
+      window.location.assign(localStorage.getItem(KEY_URL));
+    } else {
+      console.error(`Giving up on "${sku}" after ${MAX_RETRIES} attempts: ${reason}`);
+      finishAndGoToNext(sku, `Error: ${reason}`);
+    }
   }
 
   // ==========================================
@@ -327,8 +394,7 @@
 
     if (!searchInput) {
       console.error("Search box not found after 20 seconds! Amazon is loading too slowly.");
-      localStorage.setItem(KEY_ACTIVE, 'false');
-      statusTxt.textContent = "Status: ❌ Paused (Search Box Missing)";
+      failCurrentSKU(sku, "Search Box Missing");
       return;
     }
 
@@ -336,8 +402,8 @@
 
     const isDropdownVerified = await ensureDropdownIsSKU();
     if (!isDropdownVerified) {
-      console.error("Amazon refused to change the dropdown to SKU. Refreshing page to clear glitch...");
-      window.location.assign(localStorage.getItem(KEY_URL));
+      console.error("Amazon refused to change the dropdown to SKU.");
+      failCurrentSKU(sku, "Dropdown Verification Failed");
       return;
     }
 
@@ -345,10 +411,20 @@
     setNativeValue(searchInput, sku);
     await exactSleep(500);
 
+    // Capture what's on screen *before* we search (still the default
+    // unfiltered order list right after a reload) so we can tell once the
+    // search has actually taken effect, instead of guessing with a sleep.
+    const sigBeforeSearch = resultsSignature();
+
     const searchButton = document.querySelector('#myo-search-button .a-button-input') || document.querySelector('#myo-search-button-announce');
     forceClick(searchButton);
 
-    await exactSleep(waitTime);
+    const searchChanged = await waitForResultsChange(sigBeforeSearch, waitTime);
+    if (!searchChanged) {
+      console.error(`Results for "${sku}" never changed after searching (timed out after ${waitTime}ms).`);
+      failCurrentSKU(sku, "Search Results Timeout");
+      return;
+    }
 
     const pageText = document.body.textContent;
 
@@ -368,7 +444,7 @@
     let pageNum = 1;
     let hasNextPage = true;
 
-    while (hasNextPage) {
+    while (hasNextPage && pageNum <= MAX_PAGES_PER_SKU) {
       console.log(`Scanning page ${pageNum}...`);
       skuTotal += calculateTotalForSKU(sku);
 
@@ -377,12 +453,22 @@
       const isDisabled = !nextBtnLink || (parentLi && parentLi.classList.contains('a-disabled'));
 
       if (!isDisabled) {
+        const sigBeforeNext = resultsSignature();
         forceClick(nextBtnLink);
+        const nextChanged = await waitForResultsChange(sigBeforeNext, waitTime);
+        if (!nextChanged) {
+          console.error(`Page never advanced past page ${pageNum} for "${sku}" (timed out after ${waitTime}ms).`);
+          failCurrentSKU(sku, "Pagination Stalled");
+          return;
+        }
         pageNum++;
-        await exactSleep(waitTime);
       } else {
         hasNextPage = false;
       }
+    }
+
+    if (pageNum > MAX_PAGES_PER_SKU) {
+      console.warn(`Hit the ${MAX_PAGES_PER_SKU}-page cap for "${sku}"; stopping pagination early. Total may be incomplete.`);
     }
 
     console.log(`Total found for ${sku}: ${skuTotal}`);
