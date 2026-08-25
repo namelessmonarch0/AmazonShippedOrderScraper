@@ -1,0 +1,28 @@
+<!--
+A settled, real results page: app mounted, no spinner, #orders-table has rows,
+plus the verbatim pagination markup from the 2026-08-25 capture (page 1 of 2,
+151 total orders, page size 100). Used for parseOrdersSummary(),
+computeExpectedPageCount(), and isNextPageAvailable() tests.
+-->
+<!doctype html>
+<html>
+<body>
+<div id="apploading"></div>
+<table id="orders-table"><tbody>
+<tr><td rowspan="1"><input type="checkbox"></td><td rowspan="1"><div class="cell-body"><div class=""><div class="cell-body-title">7 months ago</div></div></div></td><td rowspan="1"><div class="cell-body"><div class="cell-body-title"><a href="/orders-v3/order/114-4932646-9061813">114-4932646-9061813</a></div></div></td><td><div class="myo-list-orders-product-image-cell"><img src="https://m.media-amazon.com/images/I/41NFES0dRWL._SR135,135_.jpg"></div></td><td><div class="cell-body"><div class="myo-list-orders-product-name-cell"><div class=""><div><span class="">ASIN</span>:  <b>B0FZBG9TS2</b></div></div><div class=""><div><span class="">SKU</span>:  JOURNAL-BFL-COLOR</div></div><div class=""><div><span class="">Quantity Shipped</span>:  <b>1</b></div></div></div></div></td><td rowspan="1"><div class="cell-body"><div class=""><div class="order-status-column"><div><span class="main-status shipped-status"><span class="">Shipped</span></span></div></div></div></div></td></tr>
+</tbody></table>
+<div class="">
+  <div class="jump-to-page"><div class="jump-to-page-label"><span class="">Jump to page:</span></div><input type="text" class="input-ok" value=""><span class="a-button a-button-normal myo-action-button-katal-theme jump-to-page-go-btn" id="a-autoid-11"><span class="a-button-inner"><input class="a-button-input" type="submit" value="Go" aria-labelledby="a-autoid-11-announce"><span class="a-button-text" aria-hidden="true" id="a-autoid-11-announce">Go</span></span></span></div>
+  <div class="pagination-controls">
+    <div class="a-text-center">
+      <ul class="a-pagination">
+        <li class="a-disabled">←<span class="a-letter-space"></span><span class="a-letter-space"></span>Previous</li>
+        <span><li class="a-selected"><a href="#">1</a></li><li class="a-normal"><a href="#">2</a></li></span>
+        <li class="a-last"><a href="#">Next<span class="a-letter-space"></span><span class="a-letter-space"></span>→</a></li>
+      </ul>
+    </div>
+    <span class="showingXOfYOrdersLabel">Showing orders 1 - 100 of 151 total orders.</span>
+  </div>
+</div>
+</body>
+</html>

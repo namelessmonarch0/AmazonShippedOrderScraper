@@ -1,0 +1,12 @@
+{
+  "name": "amazon-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Amazon Seller Central SKU Auto-Scanner userscript, plus a headless regression harness for its DOM parsing logic.",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.0"
+  }
+}

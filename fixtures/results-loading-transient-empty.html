@@ -1,0 +1,19 @@
+<!--
+The exact regression state from recording frames 0:03/0:11/0:19: app is
+mounted (#apploading empty), the OLD "no orders" text from before the search
+is still in the DOM, but a fresh spinner (.a-spinner) is active because the
+new search is still in flight. This is the state the pre-fix
+waitForResultsChange() mistook for "done" -- it changed from the previous
+signature (results table with rows) to this, which looks superficially like a
+genuine empty result. resultsState() must return 'loading', not 'empty'.
+-->
+<!doctype html>
+<html>
+<body>
+<div id="apploading"></div>
+<div id="results-region">
+  <span class="a-spinner a-spinner-medium"></span>
+  <p>No orders were found that match the given search criteria.</p>
+</div>
+</body>
+</html>

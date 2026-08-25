@@ -1,0 +1,26 @@
+<!--
+Page 2 of 2 (per the total-orders label from results-ready-with-pagination.html):
+the "Next" pagination item is disabled and has no <a>, per the real disabled
+markup pattern (`<li class="a-disabled">...Previous</li>` has no anchor
+either). Used to confirm isNextPageAvailable() correctly reads this as "no
+next page" without ever needing to click it.
+-->
+<!doctype html>
+<html>
+<body>
+<div id="apploading"></div>
+<table id="orders-table"><tbody>
+<tr><td><div class="cell-body"><div class=""><div><span class="">SKU</span>:  JOURNAL-BFL-COLOR</div></div><div class=""><div><span class="">Quantity Shipped</span>:  <b>1</b></div></div></div></td><td><div class="cell-body"><div class=""><div class="order-status-column"><div><span class="main-status shipped-status"><span class="">Shipped</span></span></div></div></div></div></td></tr>
+</tbody></table>
+<div class="pagination-controls">
+  <div class="a-text-center">
+    <ul class="a-pagination">
+      <li class="a-normal"><a href="#">←  Previous</a></li>
+      <span><li class="a-normal"><a href="#">1</a></li><li class="a-selected"><a href="#">2</a></li></span>
+      <li class="a-last a-disabled">Next  →</li>
+    </ul>
+  </div>
+  <span class="showingXOfYOrdersLabel">Showing orders 101 - 151 of 151 total orders.</span>
+</div>
+</body>
+</html>
